@@ -29,7 +29,7 @@ class MockApiClient : ApiClient {
 
   override suspend fun get(endpoint: String): ApiResponse {
     // Simulate network delay
-    delay(3000)
+    delay(1000)
 
     return when {
       endpoint.contains("repositories") -> {
