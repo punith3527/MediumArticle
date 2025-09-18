@@ -106,7 +106,7 @@ class ProfileViewModel(
           )
         }
 
-        emitUIEffect(ProfileUIEffect.ShowSnackbar("Profile saved successfully!"))
+        showSuccessSnackbar("Profile saved successfully!")
         profileListener.onNameUpdated(currentState.userProfile.name)
         emitNavEvent(ProfileNavEvent.NavigateBack)
       }
@@ -197,7 +197,7 @@ class ProfileViewModel(
           copy(processState = processState.copy(isLoading = false))
         }
 
-        emitUIEffect(ProfileUIEffect.ShowSnackbar("Profile refreshed!"))
+        showSuccessSnackbar("Profile refreshed!")
       }
   }
 

@@ -1,8 +1,24 @@
 # Clean and Scalable MVI Architecture for Compose Multiplatform
 
-*A comprehensive guide to building maintainable cross-platform applications using modern architecture patterns*
+*A comprehensive guide to building maintainable cross-platform applications using modern archi**Key Flow Types:**
+- **📡 UI Events**: View → ViewModel (onEvent function)
+- **🔄 State Updates**: ViewModel → View (StateFlow)
+- **🧭 Navigation**: ViewModel → Router (navEvents Flow)
+- **💫 UI Effects**: ViewModel → View (uiEffects Flow for dialogs/sheets only)
+- **📢 Snackbars**: ViewModel → Global (Direct trigger ONLY from ViewModel - never through UI effects)
+- **🗄️ Data Layer**: ViewModel → Repository → Data Sources (Network/Cache)
 
 ![Compose Multiplatform Cross-Platform Development](https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2340&q=80)
+
+## What is MVI? 🤔
+
+**MVI (Model-View-Intent)** is a reactive architecture pattern where the UI is driven by a single state and user actions trigger intents that update the state. **Why MVI?** It provides unidirectional data flow, making state management predictable and debugging easier.
+
+```
+Intent → Model → View
+  ↑                ↓
+  └── User Action ←┘
+```
 
 ## The New Era: Compose Multiplatform is Here! 🚀
 
@@ -42,31 +58,6 @@ This project demonstrates a **battle-tested MVI architecture** specifically desi
 
 **✨ The Magic**: This entire flow is type-safe, predictable, and automatically handles errors!
 
-## Why MVI + Compose Multiplatform = 🚀 Perfect Match?
-
-### ❌ Common Mistakes
-```kotlin
-// 😵‍💫 Platform-specific state scattered everywhere
-var isLoading by mutableStateOf(false) // Android
-var loadingState by mutableStateOf(LoadingState.Idle) // iOS
-```
-
-### ✅ Our Solution
-```kotlin
-// 😍 Single source of truth across ALL platforms
-data class HomeState(
-    val isLoading: Boolean = false,
-    val repositories: List<Repository> = emptyList()
-) // Works on Android 🤖, iOS 🍎, Desktop 💻
-
-// 🎯 Platform-agnostic, crystal clear flow
-private suspend fun loadRepositoriesHandler() {
-    updateState { copy(isLoading = true) }
-    val repositories = repositoryService.getRepositories()
-    updateState { copy(repositories = repositories, isLoading = false) }
-}
-```
-
 ## Project Structure Overview 📁
 
 ```
@@ -103,20 +94,38 @@ composeApp/src/commonMain/kotlin/com/punith/mediumarticle/
 
 ### 🔄 Data Flow Architecture
 
-```
-UI Event → ViewModel → State Update → UI Recomposition
-    ↓           ↓           ↓
-📱 User      🧠 Logic    ✨ Magic
-Clicks   →   Processes → Renders
-    ↓
-🧭 Navigation Event → Router → Screen Navigation
-    ↓
-💫 UI Effect → Global Systems (Snackbars, Popups)
-    ↓
-📡 Cross-Screen Event → Listener Registry → Other Screens
+```mermaid
+graph TD
+    A[👆 View] --> |"UI Events"| B[🧠 ViewModel]
+    B --> |"State Updates"| A
+    B --> |"Navigation Events"| C[🛣️ Router]
+    B --> |"UI Effects"| A
+    B --> |"Direct Calls"| D[📢 Global Snackbars]
+    B --> |"Data Requests"| F[🗄️ Repository]
+    F --> |"Network/Cache"| G[🌐 Data Sources]
+    F --> |"Data Response"| B
+    
+    C --> |"Navigate"| E[📱 New Screen]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#e8f5e8
+    style G fill:#fff8e1
 ```
 
+**Key Flow Types:**
+- **📡 UI Events**: View → ViewModel (onEvent function)
+- **� State Updates**: ViewModel → View (StateFlow)
+- **🧭 Navigation**: ViewModel → Router (navEvents Flow)
+- **💫 UI Effects**: ViewModel → View (uiEffects Flow for dialogs/sheets)
+- **📢 Snackbars**: ViewModel → Global (Direct trigger only from ViewModel)
+
 ### 1. BaseViewModel - The Foundation 🧠
+
+**Event Flow Collection**: Each event type is collected in separate coroutine launches to prevent blocking and ensure concurrent processing. This allows multiple events to be handled simultaneously without affecting UI responsiveness.
 
 ```kotlin
 abstract class BaseViewModel<UIState, UIEvent, NavEvent, UIEffect, Params>(
@@ -158,6 +167,7 @@ abstract class BaseViewModel<UIState, UIEvent, NavEvent, UIEffect, Params>(
 - **🔒 Thread-safe state management** with immutable updates
 - **🚨 Automatic exception handling** with user-friendly error display
 - **♻️ Lifecycle-aware cleanup** to prevent memory leaks
+- **📢 Direct snackbar access** via `showSnackbar()`, `showSuccessSnackbar()`, `showErrorSnackbar()` methods
 
 ### 2. BaseRoute - The Navigation Orchestrator 🎼
 
@@ -188,6 +198,94 @@ inline fun <
 - **📡 Reactive state streaming** to UI
 - **🧭 Navigation event routing**
 
+## Dependency Injection with Tatarka Kotlin Inject 💉
+
+**ApplicationComponent** manages global repositories and services shared across the entire app. **Screen Components** handle screen-specific dependencies that shouldn't pollute the global scope.
+
+### 1. Application Component - Global Dependencies 🌐
+
+```kotlin
+@ApplicationScope
+@Component
+abstract class ApplicationComponent {
+  @ApplicationScope
+  @Provides
+  fun provideApiClient(): ApiClient = MockApiClient()
+  
+  companion object
+}
+```
+
+### 2. Screen Component - Screen-Specific Dependencies 📱
+
+```kotlin
+@HomeScope
+@Component
+abstract class HomeComponent(
+  @get:Provides val params: HomeParams,
+  @Component val applicationComponent: ApplicationComponent,
+) {
+  abstract val homeViewModel: HomeViewModel
+
+  @HomeScope
+  @Provides
+  fun provideRepositoryService(apiClient: ApiClient): RepositoryService =
+    NetworkRepositoryService(apiClient)
+}
+```
+
+## Cross-Screen Communication with Listeners 📡
+
+### 1. Listener Registry System
+
+```kotlin
+object GlobalListenerRegistry {
+  private var counter = 0L
+  private val backingMap = mutableMapOf<String, Any>()
+
+  fun <T: Any> register(listener: T): String {
+    val token = "L_" + (++counter)
+    backingMap[token] = listener
+    return token
+  }
+
+  inline fun <reified T: Any> getTyped(token: String): T = 
+    backingMap[token] as? T ?: error("Listener not found")
+
+  fun unregister(token: String) { backingMap.remove(token) }
+}
+```
+
+### 2. Listener Usage Example
+
+```kotlin
+// Define listener interface
+interface ProfileUpdateListener {
+  fun onProfileUpdated(userInfo: UserInfo)
+}
+
+// In ProfileViewModel - register listener
+class ProfileViewModel(/*...*/) : BaseViewModel(/*...*/) {
+  private val updateListener = object : ProfileUpdateListener {
+    override fun onProfileUpdated(userInfo: UserInfo) {
+      updateState { copy(userInfo = userInfo) }
+    }
+  }
+  
+  init {
+    val token = GlobalListenerRegistry.register(updateListener)
+  }
+}
+
+// In HomeViewModel - use listener for communication
+class HomeViewModel(/*...*/) : BaseViewModel(/*...*/) {
+  private fun notifyProfileUpdate() {
+    val profileListener = GlobalListenerRegistry.getTyped<ProfileUpdateListener>(listenerToken)
+    profileListener.onProfileUpdated(currentUserInfo)
+  }
+}
+```
+
 ## Screen Architecture Example: Home Screen 🏠
 
 ### 1. Contract Definition 📋
@@ -216,7 +314,8 @@ sealed class HomeNavEvent {
 
 // Effects
 sealed class HomeUIEffect {
-  data class ShowSnackbar(val message: String) : HomeUIEffect()
+  data class ShowWelcomeDialog(val userName: String) : HomeUIEffect()
+  // Note: Snackbars are triggered directly from ViewModel, not through UI effects
 }
 ```
 
@@ -231,12 +330,28 @@ class HomeViewModel(
   params = params, initialState = HomeState()
 ) {
   
+  // Profile listener registered in ViewModel initialization
+  val profileListenerToken: String = registerListener(
+    object : ProfileListener {
+      override fun onNameUpdated(name: String) {
+        onProfileUpdated(name)
+      }
+      override fun onLogout() {
+        onLogoutClicked()
+      }
+      override fun onError(message: String) {
+        onErrorClicked(message)
+      }
+    }
+  )
+  
   init {
     setupEventHandlers()
     launch { loadRepositories() }
   }
 
   private fun setupEventHandlers() {
+    // Each event type collected in separate launch for concurrent processing
     launch { 
       uiEvents.filterIsInstance<HomeUIEvent.LoadRepositories>().collect {
         loadRepositoriesHandler()
@@ -244,7 +359,18 @@ class HomeViewModel(
     }
     launch { 
       uiEvents.filterIsInstance<HomeUIEvent.NavigateToProfile>().collect {
-        emitNavEvent(HomeNavEvent.NavigateToProfile(ProfileParams(/*...*/)))
+        val profileParams = ProfileParams(
+          userId = currentState.userInfo.email,
+          userEmail = currentState.userInfo.email,
+          userName = currentState.userInfo.name,
+          listenerToken = profileListenerToken, // Pass token to ProfileScreen
+        )
+        emitNavEvent(HomeNavEvent.NavigateToProfile(profileParams))
+      }
+    }
+    launch {
+      uiEvents.filterIsInstance<HomeUIEvent.RefreshData>().collect {
+        refreshDataHandler()
       }
     }
   }
@@ -256,8 +382,14 @@ class HomeViewModel(
       updateState { copy(repositories = repositories, processState = processState.copy(isLoading = false)) }
     } catch (e: Exception) {
       updateState { copy(processState = processState.copy(isLoading = false)) }
-      emitUIEffect(HomeUIEffect.ShowSnackbar("Failed to load repositories"))
+      showErrorSnackbar("Failed to load repositories") // Direct snackbar trigger
     }
+  }
+
+  // Profile listener callbacks - called when ProfileScreen updates
+  fun onProfileUpdated(name: String) {
+    showSuccessSnackbar("Profile updated successfully!") // Direct snackbar trigger
+    updateState { copy(userInfo = userInfo.copy(name = name)) }
   }
 }
 ```
@@ -271,11 +403,13 @@ fun HomeView(
   onEvent: (HomeUIEvent) -> Unit,
   uiEffects: Flow<HomeUIEffect>,
 ) {
-  // Handle effects
+  // Handle effects (only for dialogs/complex UI effects)
   LaunchedEffect(Unit) {
     uiEffects.collect { effect ->
       when (effect) {
-        is HomeUIEffect.ShowSnackbar -> GlobalSnackbarCenter.showSnackbar(effect.message)
+        is HomeUIEffect.ShowWelcomeDialog -> {
+          // Handle welcome dialog display
+        }
       }
     }
   }
@@ -341,105 +475,7 @@ fun HomeRouter(navEvents: Flow<HomeNavEvent>) {
 6. **Destination screen**: Automatically receives and parses parameters
 ```
 
-## Dependency Injection with Tatarka Kotlin Inject 💉
-
-### 1. Application Component 🌐
-
-```kotlin
-@ApplicationScope
-@Component
-abstract class ApplicationComponent {
-  @ApplicationScope
-  @Provides
-  fun provideApiClient(): ApiClient = MockApiClient()
-  
-  companion object
-}
-```
-
-### 2. Screen Component 📱
-
-```kotlin
-@HomeScope
-@Component
-abstract class HomeComponent(
-  @get:Provides val params: HomeParams,
-  @Component val applicationComponent: ApplicationComponent,
-) {
-  abstract val homeViewModel: HomeViewModel
-
-  @HomeScope
-  @Provides
-  fun provideRepositoryService(apiClient: ApiClient): RepositoryService =
-    NetworkRepositoryService(apiClient)
-}
-```
-
-**🚀 Tatarka Kotlin Inject Benefits:**
-- **⚡ Compile-time safety** - No runtime dependency resolution failures
-- **🏃‍♂️ Zero reflection overhead** - Pure compile-time code generation
-- **🧩 Modularity** - Screen-scoped dependencies don't pollute global scope
-- **🧪 Easy testing** - Simple dependency mocking
-
-## Cross-Screen Communication with Listeners 📡
-
-### 1. Listener Registry System
-
-```kotlin
-object GlobalListenerRegistry {
-  private var counter = 0L
-  private val backingMap = mutableMapOf<String, Any>()
-
-  fun <T: Any> register(listener: T): String {
-    val token = "L_" + (++counter)
-    backingMap[token] = listener
-    return token
-  }
-
-  inline fun <reified T: Any> getTyped(token: String): T = 
-    backingMap[token] as? T ?: error("Listener not found")
-
-  fun unregister(token: String) { backingMap.remove(token) }
-}
-```
-
-### 2. Listener Usage Example
-
-```kotlin
-// Define listener interface
-interface ProfileUpdateListener {
-  fun onProfileUpdated(userInfo: UserInfo)
-}
-
-// In ProfileViewModel - register listener
-class ProfileViewModel(/*...*/) : BaseViewModel(/*...*/) {
-  private val updateListener = object : ProfileUpdateListener {
-    override fun onProfileUpdated(userInfo: UserInfo) {
-      // Notify other screens about profile updates
-      updateState { copy(userInfo = userInfo) }
-    }
-  }
-  
-  init {
-    val token = GlobalListenerRegistry.register(updateListener)
-    // Pass token to other screens that need to communicate
-  }
-}
-
-// In HomeViewModel - use listener for communication
-class HomeViewModel(/*...*/) : BaseViewModel(/*...*/) {
-  private fun notifyProfileUpdate() {
-    val profileListener = GlobalListenerRegistry.getTyped<ProfileUpdateListener>(listenerToken)
-    profileListener.onProfileUpdated(currentUserInfo)
-  }
-}
-```
-
-**📡 Cross-Screen Communication Benefits:**
-- **🛡️ Type-safe communication** between screens
-- **🔄 Reactive updates** across multiple screens
-- **🧩 Decoupled architecture** - screens don't know about each other directly
-- **💾 Memory efficient** - automatic cleanup when screens are destroyed
+## Screen Architecture Example: Home Screen 🏠
 
 ## Global State Management 🌐
 

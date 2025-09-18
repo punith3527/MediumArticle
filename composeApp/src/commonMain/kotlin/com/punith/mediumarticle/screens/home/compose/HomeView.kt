@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.punith.mediumarticle.global.GlobalSnackbarCenter
+import com.punith.mediumarticle.global.showErrorSnackbar
 import com.punith.mediumarticle.global.showSuccessSnackbar
 import com.punith.mediumarticle.screens.home.HomeState
 import com.punith.mediumarticle.screens.home.HomeUIEffect
@@ -37,22 +38,6 @@ fun HomeView(
   LaunchedEffect(Unit) {
     uiEffects.collect { effect ->
       when (effect) {
-        is HomeUIEffect.ShowSnackbar -> {
-          // Use different snackbar types based on message content
-          when {
-            effect.message.contains("success", ignoreCase = true) || 
-            effect.message.contains("refresh", ignoreCase = true) -> {
-              showSuccessSnackbar(effect.message)
-            }
-            effect.message.contains("failed", ignoreCase = true) || 
-            effect.message.contains("error", ignoreCase = true) -> {
-              com.punith.mediumarticle.global.showErrorSnackbar(effect.message)
-            }
-            else -> {
-              GlobalSnackbarCenter.showSnackbar(effect.message)
-            }
-          }
-        }
         is HomeUIEffect.ShowWelcomeDialog -> {
           // Handle welcome dialog if needed
         }

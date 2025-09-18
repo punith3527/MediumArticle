@@ -65,6 +65,5 @@ sealed class HomeNavEvent {
  * Home-specific UI Effects
  */
 sealed class HomeUIEffect {
-  data class ShowSnackbar(val message: String) : HomeUIEffect()
   data class ShowWelcomeDialog(val userName: String) : HomeUIEffect()
 }

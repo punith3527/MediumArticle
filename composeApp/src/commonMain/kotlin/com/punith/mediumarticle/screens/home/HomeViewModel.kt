@@ -5,6 +5,7 @@ import com.punith.mediumarticle.global.GlobalPopupCenter
 import com.punith.mediumarticle.global.overlayPopup
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.graphics.Color
+import com.punith.mediumarticle.global.GlobalSnackbarCenter
 import com.punith.mediumarticle.screens.home.data.RepositoryService
 import com.punith.mediumarticle.screens.profile.ProfileListener
 import com.punith.mediumarticle.screens.profile.ProfileParams
@@ -80,12 +81,12 @@ class HomeViewModel(
               processState = processState.copy(refreshing = false)
             )
           }
-          emitUIEffect(HomeUIEffect.ShowSnackbar("Data refreshed successfully!"))
+          GlobalSnackbarCenter.showSnackbar("Data refreshed successfully!")
         } catch (e: Exception) {
           updateState {
             copy(processState = processState.copy(refreshing = false))
           }
-          emitUIEffect(HomeUIEffect.ShowSnackbar("Failed to refresh data"))
+          showErrorSnackbar("Failed to refresh data")
         }
       }
   }
@@ -118,7 +119,7 @@ class HomeViewModel(
         copy(processState = processState.copy(isLoading = false))
       }
       GlobalPopupCenter.dismiss(dedupKey = "home_loading_repos")
-      emitUIEffect(HomeUIEffect.ShowSnackbar("Failed to load repositories"))
+      showErrorSnackbar("Failed to load repositories")
     }
   }
 
@@ -217,7 +218,7 @@ class HomeViewModel(
   }
 
   fun onProfileUpdated(name: String) {
-    emitUIEffect(HomeUIEffect.ShowSnackbar("Profile updated successfully!"))
+    showSuccessSnackbar("Profile updated successfully!")
     updateState {
       copy(
         userInfo = userInfo.copy(
@@ -232,6 +233,6 @@ class HomeViewModel(
   }
 
   fun onErrorClicked(error: String) {
-    emitUIEffect(HomeUIEffect.ShowSnackbar("Error: $error"))
+    showErrorSnackbar("Error: $error")
   }
 }

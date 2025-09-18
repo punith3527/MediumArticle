@@ -73,9 +73,6 @@ fun ProfileView(
   LaunchedEffect(Unit) {
     uiEffects.collect { effect ->
       when (effect) {
-        is ProfileUIEffect.ShowSnackbar -> {
-          GlobalSnackbarCenter.showSnackbar("This is a snackbar")
-        }
         is ProfileUIEffect.ShowConfirmationDialog -> { /* future */ }
       }
     }
